@@ -23,6 +23,8 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "stm32f10x_it.h"
+#include "usart.h"
+#include "led_reverse.h"
 
 /** @addtogroup STM32F10x_StdPeriph_Template
   * @{
@@ -134,6 +136,21 @@ void PendSV_Handler(void)
   */
 void SysTick_Handler(void)
 {
+}
+
+
+
+
+void USART1_IRQHandler(void) 
+{
+	unsigned char receivedata;
+	if((USART_GetFlagStatus(USART1,USART_FLAG_RXNE)!=RESET))
+	{
+	led_reverse();
+	receivedata=USART_ReceiveData(USART1);
+	usart_sendbyte(USART1,receivedata);	
+	}
+	
 }
 
 /******************************************************************************/

@@ -3,22 +3,10 @@
 void usart1_init(void)
 	
 {
-	//先配置pa9 io口
-	RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, ENABLE);
-	GPIO_InitTypeDef GPIO_InitStructure;
-	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF_PP; //选择复用模式 推挽输出
-	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_9;
-	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
-	GPIO_Init(GPIOA, &GPIO_InitStructure);
 	
-	//配置pa10 io口
-	RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, ENABLE);
-	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IN_FLOATING; //选择浮空输入
-	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_10;
-	GPIO_Init(GPIOA, &GPIO_InitStructure);
+	//先配置usart 再配置gpio 不然gpio初始化时有可能会发送一个0xff 产生干扰
 	
-	
-	//打开usart1上的的时钟
+	//打开usart1上的的时钟   
 	RCC_APB2PeriphClockCmd(RCC_APB2Periph_USART1, ENABLE);
 	
 	//配置USART_InitTypeDef 初始化结构体
@@ -28,15 +16,15 @@ void usart1_init(void)
 	USART_InitStruct.USART_WordLength = USART_WordLength_8b;  //定义有效位长度
 	USART_InitStruct.USART_StopBits = USART_StopBits_1; //选择一位的停止位
 	USART_InitStruct.USART_Parity = USART_Parity_No; //这里采用无校验
-	USART_InitStruct.USART_Mode = USART_Mode_Tx|USART_Mode_Rx; //发送模式 接收模式都打开
+	USART_InitStruct.USART_Mode = USART_Mode_Rx|USART_Mode_Tx; //发送模式 接收模式都打开
 	USART_InitStruct.USART_HardwareFlowControl = USART_HardwareFlowControl_None;
 	USART_Init(USART1, &USART_InitStruct); //调用初始化函数
 
 	//配置串口中断优先级 接收时开启中断 
 	
 	NVIC_InitTypeDef NVIC_InitStruct; //命名结构体
-	//优先级分组  例子中选择主1 子3 分组1
-	NVIC_PriorityGroupConfig(NVIC_PriorityGroup_1);
+	//优先级分组  例子中选择主1 子3 分组2
+	NVIC_PriorityGroupConfig(NVIC_PriorityGroup_2);
 	// 配置nvic初始化结构体
 	// 中断源的值在stm32f10x.h 里找   大容量用hd下面的 
 	NVIC_InitStruct.NVIC_IRQChannel = USART1_IRQn; //采用USART1
@@ -49,8 +37,29 @@ void usart1_init(void)
 	// 配置串口中断     接收寄存器空时产生中断
 	USART_ITConfig(USART1, USART_IT_RXNE, ENABLE);
 	
+
 	// 使能串口
 	USART_Cmd(USART1, ENABLE);
+	
+	
+	// 清除串口标志位   tx上最好上接一个上拉 不然上电时候会发送一个0xff
+	USART_ClearFlag( USART1, USART_FLAG_TC );
+	
+	
+	
+	//配置pa9 io口
+	RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, ENABLE);	
+	GPIO_InitTypeDef GPIO_InitStructure;
+	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF_PP; //选择复用模式 推挽输出
+	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_9;
+	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
+	GPIO_Init(GPIOA, &GPIO_InitStructure);
+	
+	//配置pa10 io口
+	RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, ENABLE);
+	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IN_FLOATING; //选择浮空输入
+	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_10;
+	GPIO_Init(GPIOA, &GPIO_InitStructure);
 	
 }
 
@@ -84,6 +93,7 @@ void usart_sendarr(USART_TypeDef* USARTx,unsigned char *arr,unsigned char arrnum
 	for(i=0;i<arrnumber;i++)
 	{
 		USART_SendData(USARTx,arr[i]);
+		while(USART_GetFlagStatus(USARTx,USART_FLAG_TXE)==RESET); 
 	}
 	
 	// 直接判断发送完成 标志位
@@ -94,22 +104,24 @@ void usart_sendarr(USART_TypeDef* USARTx,unsigned char *arr,unsigned char arrnum
 
 // 发送字符串
 void usart_sendstr(USART_TypeDef* USARTx,unsigned char *str)
-{
-	unsigned char i = 0;
+{ 
+	unsigned char i = 0; //想发中文的话 把keil编码从u-8改成gbk或2312
 	do
 	{
 	USART_SendData(USARTx,*(str+i));	
+	while(USART_GetFlagStatus(USARTx,USART_FLAG_TXE)==RESET);
 	i++;	
-	}while(*(str+i)!='0');   //字符串以\0结束 用这个来判断
+	}while(*(str+i)!='\0');   //字符串以\0结束 用这个来判断
 	
+	while(USART_GetFlagStatus(USARTx,USART_FLAG_TC)==RESET);
 }
 
 
 
 unsigned char usart_recieve_data(USART_TypeDef* USARTx)
 {
+while(USART_GetFlagStatus(USARTx,USART_FLAG_RXNE)==RESET);	
 	
-while(USART_GetFlagStatus(USARTx,USART_FLAG_RXNE)==RESET);
 return USART_ReceiveData(USARTx);
 
 }
